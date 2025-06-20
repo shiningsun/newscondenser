@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Condenser</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 2em; 
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: auto; 
+            padding: 2em; 
+            background-color: #fff;
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            text-align: center; 
+            color: #005a9c;
+        }
+        form div { 
+            margin-bottom: 1.5em; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 0.5em; 
+            font-weight: bold;
+        }
+        input[type="text"], input[type="date"], input[type="number"] {
+            width: 100%;
+            padding: 0.8em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            width: 100%;
+            padding: 1em;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>News Condenser</h1>
+        <form action="/process" method="post" id="news-form">
+            <div>
+                <label for="search_fields">Search Fields:</label>
+                <input type="text" id="search_fields" name="search_fields" placeholder="Enter keywords or phrases">
+            </div>
+            <div>
+                <label for="from_date">From Date:</label>
+                <input type="date" id="from_date" name="from_date">
+            </div>
+            <div>
+                <label for="limit">Limit:</label>
+                <input type="number" id="limit" name="limit" value="10" min="1" max="100">
+            </div>
+            <div>
+                <label for="categories">Categories:</label>
+                <input type="text" id="categories" name="categories" placeholder="e.g. technology, politics (comma-separated)">
+            </div>
+            <div>
+                <label>Sources:</label>
+                <div style="margin-top: 0.5em;">
+                    <label style="display: inline-block; margin-right: 1em; font-weight: normal;">
+                        <input type="checkbox" name="sources" value="thenewsapi"> The News API
+                    </label>
+                    <label style="display: inline-block; margin-right: 1em; font-weight: normal;">
+                        <input type="checkbox" name="sources" value="guardian"> Guardian
+                    </label>
+                    <label style="display: inline-block; margin-right: 1em; font-weight: normal;">
+                        <input type="checkbox" name="sources" value="nytimes"> NY Times
+                    </label>
+                    <label style="display: inline-block; margin-right: 1em; font-weight: normal;">
+                        <input type="checkbox" name="sources" value="gnews"> GNews
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label for="domains">Domains:</label>
+                <input type="text" id="domains" name="domains" placeholder="e.g. bbc.com, cnn.com (comma-separated)">
+            </div>
+            <div>
+                <input type="submit" value="Condense News">
+            </div>
+        </form>
+        <div id="results" style="margin-top: 2em;"></div>
+    </div>
+    <script>
+        document.getElementById('news-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const formData = new FormData(this);
+            const responseContainer = document.getElementById('results');
+            responseContainer.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    let html = '';
+                    
+                    if (data.status === 'success') {
+                        // Display summary prominently
+                        if (data.summary) {
+                            html += '<h2>AI-Generated Summary</h2>';
+                            html += '<div style="background-color: #f8f9fa; padding: 1em; border-radius: 5px; margin-bottom: 2em; border-left: 4px solid #007bff;">';
+                            html += '<p style="white-space: pre-wrap; line-height: 1.6;">' + data.summary + '</p>';
+                            html += '</div>';
+                        }
+                        
+                        // Display extracted data
+                        if (data.extracted_data) {
+                            html += '<h3>Extracted Data</h3>';
+                            html += '<p><strong>Total Articles:</strong> ' + data.extracted_data.total_articles + '</p>';
+                            
+                            // Display article URLs
+                            if (data.extracted_data.article_urls && data.extracted_data.article_urls.length > 0) {
+                                html += '<h4>Article URLs:</h4><ul>';
+                                data.extracted_data.article_urls.forEach(url => {
+                                    html += '<li><a href="' + url + '" target="_blank">' + url + '</a></li>';
+                                });
+                                html += '</ul>';
+                            }
+                        }
+                        
+                        // Display form data
+                        html += '<h3>Form Data</h3>';
+                        html += '<pre>' + JSON.stringify(data.form_data, null, 2) + '</pre>';
+                        
+                        // Display API parameters
+                        html += '<h3>API Parameters</h3>';
+                        html += '<pre>' + JSON.stringify(data.api_params, null, 2) + '</pre>';
+                    } else {
+                        html = '<p style="color: red;">Error: ' + (data.message || 'Unknown error') + '</p>';
+                    }
+                    
+                    responseContainer.innerHTML = html;
+                } else {
+                    responseContainer.innerHTML = '<p>Error processing request.</p>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                responseContainer.innerHTML = '<p>An error occurred.</p>';
+            }
+        });
+    </script>
+</body>
+</html> 
