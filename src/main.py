@@ -25,7 +25,7 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-async def summarize_with_deepseek(article_content: List[Dict], search_query: str) -> str:
+async def summarize_with_deepseek(article_content: List[Dict], search_query: str, word_length: int = 1000) -> str:
     """Summarize articles using DeepSeek API."""
     try:
         # Check if API key is available
@@ -47,21 +47,26 @@ async def summarize_with_deepseek(article_content: List[Dict], search_query: str
             context += f"Content: {article.get('content', '')}\n\n"
         
         # Create the prompt for summarization
-        prompt = f"""Based on the news articles provided below, which are the search results for '{search_query}', please write a comprehensive 1000-word summary of all the events related to this topic. Your summary should use the content of these articles as the primary source of information to construct a coherent narrative. The goal is to produce a single, detailed overview that synthesizes the information from all articles, not to summarize each article individually.
+        prompt = f"""Based on the news articles provided below, which are the search results for '{search_query}', please write a comprehensive {word_length}-word summary of all the events related to this topic. Your summary should use the content of these articles as the primary source of information to construct a coherent narrative. The goal is to produce a single, detailed overview that synthesizes the information from all articles, not to summarize each article individually.
 
-Search Query: "{search_query}"
+Search Query: \"{search_query}\"
 
 Articles:
 {context}
 
 Please structure your summary to:
-1.  Create a cohesive narrative of events and developments related to "{search_query}".
+1.  Create a cohesive narrative of events and developments related to \"{search_query}\".
 2.  Synthesize key information, facts, and figures from the articles.
 3.  Provide context and background where necessary to explain the significance of the events.
 4.  Maintain a neutral and objective tone throughout the summary.
-5.  Be approximately 1000 words long.
+5.  Be approximately {word_length} words long.
 
-Comprehensive Summary of Events Related to "{search_query}":"""
+Comprehensive Summary of Events Related to \"{search_query}\":"""
+
+        # Estimate max_tokens (1 word ≈ 1.3 tokens, round up)
+        max_tokens = int(word_length * 1.4)
+        if max_tokens > 4096:
+            max_tokens = 4096  # DeepSeek/ChatGPT-3.5/4 limit safeguard
 
         # Call DeepSeek API
         response = client.chat.completions.create(
@@ -69,7 +74,7 @@ Comprehensive Summary of Events Related to "{search_query}":"""
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=1500,
+            max_tokens=max_tokens,
             temperature=0.3
         )
         
@@ -99,7 +104,8 @@ async def process_form(
     limit: int = Form(10),
     categories: str = Form(""),
     sources: List[str] = Form([]),
-    domains: str = Form("")
+    domains: str = Form(""),
+    summarize_word_length: int = Form(1000)
 ):
     """Process the submitted form data and call the news API."""
     
@@ -164,7 +170,7 @@ async def process_form(
                 article_urls.append(url)
         
         # Generate summary using DeepSeek API
-        summary = await summarize_with_deepseek(article_content, search_fields)
+        summary = await summarize_with_deepseek(article_content, search_fields, summarize_word_length)
         
         # Return the processed data
         return {
@@ -175,7 +181,8 @@ async def process_form(
                 "limit": limit,
                 "categories": split_str(categories),
                 "sources": sources,
-                "domains": split_str(domains)
+                "domains": split_str(domains),
+                "summarize_word_length": summarize_word_length
             },
             "api_params": params,
             "extracted_data": {
@@ -197,7 +204,8 @@ async def process_form(
                 "limit": limit,
                 "categories": split_str(categories),
                 "sources": sources,
-                "domains": split_str(domains)
+                "domains": split_str(domains),
+                "summarize_word_length": summarize_word_length
             },
             "api_params": params
         }
